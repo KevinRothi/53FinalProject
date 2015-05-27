@@ -8,8 +8,7 @@ void process_request(int connfd, struct sockaddr_in* clientaddr);
 int parse_uri(char* uri, char* hostname, char* pathname, int* port);
 void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, int size);
 
-int main(int argc, char ** argv)
-{
+int main(int argc, char ** argv) {
 	int listenfd;
 	int port;
 	int clientlen;
@@ -25,27 +24,29 @@ int main(int argc, char ** argv)
 	port = atoi(argv[1]);
 	listenfd = Open_listenfd(port);
 	logfile = Fopen(PROXY_LOG,"a");
+	
+	printf("Accepting connections at port %d...\n", port);
+
 	while(1)
 	{
 		clientlen = sizeof(clientaddr);
 		connfd = Accept(listenfd, (SA *)&clientaddr, (socklen_t *)&clientlen);
 		process_request(connfd, &clientaddr);
-	}	
+	}
+
+	close(logfile);
 	exit(0);
 } 
 
-void process_request(int connfd, struct sockaddr_in* clientaddr)
-{	
+void process_request(int connfd, struct sockaddr_in* clientaddr) {	
 	printf("connection made\n");
 	close(connfd);
 }
 
-int parse_uri(char* uri, char* hostname, char* pathname, int* port)
-{
+int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
 	return 0;
 }
 
-void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, int size)
-{
+void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, int size) {
 	
 }
