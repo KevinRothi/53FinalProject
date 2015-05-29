@@ -82,5 +82,25 @@ int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
 }
 
 void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, int size) {
+	//format = Date: browserIP URL size
+	time_t now;
+	char time_str[MAXLINE];
+	unsigned long host;
+	unsigned char a, b, c, d;
+
+	now = time(NULL); //get current time
+	//format time as a string: [week day] [month day] [month] [year] [hour]:[minute]:[second] [daylight savings]
+	strftime(time_str, MAXLINE, "%a %d %b %Y %H:%M:%S %Z", localtime(&now));
+
+	//convert IP address to host byte order
+	host = ntohl(sockaddr->sin_addr.s_addr);
+	//convert to hex format
+	a = host >> 24; //7,8 hex digits
+	b = (host >> 16) & 0xff; //5,6 hex digits
+	c = (host >> 8) & 0xff; //3,4 hex digits
+	d = host & 0xff; //1,2 hex digits
+	//hex address is a:b:c:d
 	
+	//put fully formatted string into log entry
+	sprintf(log_entry, "%s: %d.%d.%d.%d %s %d", time_str, a, b, c, d, uri, size);
 }
