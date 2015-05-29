@@ -34,7 +34,7 @@ int main(int argc, char ** argv) {
 		process_request(connfd, &clientaddr);
 	}
 
-	close(logfile);
+	Fclose(logfile);
 	exit(0);
 } 
 
@@ -59,7 +59,7 @@ int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
 
 	//extract the host name out of the uri
 	hostbegin = uri + 7; //move past the protocol
-	hostend = strbrk(hostbegin, " :/\r\r\0"); //Take the rest of the string until one of these chars
+	hostend = strpbrk(hostbegin, " :/\r\r\0"); //Take the rest of the string until one of these chars
 	len = hostend - hostbegin;
 	strncpy(hostname, hostbegin, len); //copy the string into host name
 	hostname[len] = '\0'; //Make sure to null terminate
@@ -76,7 +76,7 @@ int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
 		pathname[0] = '\0';
 	} else { //take the rest of the uri string
 		pathbegin++;
-		strcpy(pathname, pathbegin)
+		strcpy(pathname, pathbegin);
 	}
 	return 0;
 }
