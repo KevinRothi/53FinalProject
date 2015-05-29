@@ -44,6 +44,40 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 }
 
 int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
+	char *hostbegin;
+	char *hostend;
+	char *pathbegin;
+	int len;
+
+	//URI should be in format: "http://[hostname]:[port]/[pathname]"
+
+	//Check to make sure http protocol is specified. Otherwise we won't handle!
+	if(strncasecmp(uri, "http://", 7) !=0) {
+		hostname[0] = '\0';
+		return -1;
+	}
+
+	//extract the host name out of the uri
+	hostbegin = uri + 7; //move past the protocol
+	hostend = strbrk(hostbegin, " :/\r\r\0"); //Take the rest of the string until one of these chars
+	len = hostend - hostbegin;
+	strncpy(hostname, hostbegin, len); //copy the string into host name
+	hostname[len] = '\0'; //Make sure to null terminate
+
+	//get port
+	*port = 80; //set a default port in case user does not specify one.
+	if (*hostend == ':') {
+		*port = atoi(hostend + 1); //parse the port if there is one specified
+	}
+
+	//extract path
+	pathbegin = strchr(hostbegin, '/'); //take location right after the '/' char (where path should be)
+	if(pathbegin == NULL) { //no path
+		pathname[0] = '\0';
+	} else { //take the rest of the uri string
+		pathbegin++;
+		strcpy(pathname, pathbegin)
+	}
 	return 0;
 }
 
