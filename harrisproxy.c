@@ -20,16 +20,25 @@ int main(int argc, char ** argv) {
 		fprintf(stderr, "Usage: %s <port number>\n",argv[0]);
 		exit(0);
 	}
+	//we'll ignore any signals resulting from writing to a closed connection
 	signal(SIGPIPE,SIG_IGN);
+	//grab the port number
 	port = atoi(argv[1]);
+
+	//Open the connection
 	listenfd = Open_listenfd(port);
+
+	//open up the log file, and set it to append (so we don't overwrite anything).
 	logfile = Fopen(PROXY_LOG,"a");
 	
+	//print out a status so we know the proxy is running
 	printf("Accepting connections at port %d...\n", port);
 
 	while(1)
 	{
+		
 		clientlen = sizeof(clientaddr);
+		//Accept a request from a client, then process it.
 		connfd = Accept(listenfd, (SA *)&clientaddr, (socklen_t *)&clientlen);
 		process_request(connfd, &clientaddr);
 	}
@@ -39,8 +48,136 @@ int main(int argc, char ** argv) {
 } 
 
 void process_request(int connfd, struct sockaddr_in* clientaddr) {	
-	printf("connection made\n");
+	int serverfd; //we'll open a connection to the server to read from.
+	char *request; //the http request we pull from the client
+	char *request_uri; //pointer to the start of the URI from the request
+	char *request_uri_end; //end of the URI
+	char *rest_of_request; //after URI
+	int request_len; //size of the request
+	int response_len; //size of the response (from the server)
+	int i,n; //some counting/iteration vars
+	int realloc_factor; //We'll use this to increase the size of the request/response buf
+
+	char hostname[MAXLINE]; //we'll extract the hostname from the URI
+	char pathname[MAXLINE]; //extract pathname from URI
+	int port; //port number from URI -- defaults to 80
+
+	char log_entry[MAXLINE]; //log entry
+
+	rio_t rio; //robust input/output
+
+	char buf[MAXLINE];
+
+	//We'll read the request one line at a time.
+	request = (char*)Malloc(MAXLINE);
+	request[0] = '\0';
+	realloc_factor = 2;
+	request_len = 0;
+	Rio_readinitb(&rio, connfd);
+	while(1) {
+		if((n = Rio_readlineb_w(&rio, buf, MAXLINE)) <= 0) {
+			printf("process_request: client issued a bad request (1).\n");
+			close(connfd);
+			free(request);
+			return NULL;
+		}
+		//make sure request buffer is large enough;
+		if(request_len + n + 1 > MAXLINE) {
+			Realloc(request, MAXLINE*realloc_factor++);
+		}
+		//copy the newly read line into the request
+		strcat(request, buf);
+		request_len += n;
+
+		//terminate the HTTP request with a blank line
+		if(strcmp(buf, "\r\n") == 0) {
+			break;
+		}
+	}
+
+	//TODO: does it only need to handle GET requests?
+	if(strncmp(request, "GET ", strlen("get "))) {
+		printf("process_request: Received non-GET request\n");
+		close(connfd);
+		free(request);
+		return NULL;
+	}
+	request_uri = request + 4; //the URI occurs right after the GET
+
+	//find URI
+	request_uri_end = NULL; //initially we don't know where the end of the URI is.
+	for(i = 0; i < request_len; ++i) {
+		//URI ends at a space
+		if(request_uri[i] == ' ') {
+			request_uri[i] = '\0'; //change that space to a null terminator for parsing
+			request_uri_end = &request_uri[i]; //set the end of the uri
+			break;
+		}
+	}
+
+	//if we found the end before a blank, then the request is not properly formatted
+	if(i == request_len) {
+		printf("process_request: Couldn't find end of URI\n");
+		close(connfd);
+		free(request);
+		return NULL;
+	}
+
+	//make sure HTTP version follows URI
+	if(strncmp(request_uri_end + 1, "HTTP/1.0\r\n", strlen("HTTP/1.0\r\n")) &&
+	strncmp(request_uri_end + 1, "HTTP/1.1\r\n", strlen("HTTP/1.1\r\n"))) {
+		printf("process_request: client issued a bad request (4).\n");
+		close(connfd);
+		free(request);
+		return NULL;
+	}
+
+	//The rest of the request follow the HTTP directive
+	rest_of_request = request_uri_end + strlen("HTTP/1.0\r\n") + 1;
+
+	//parse URI. [hostname]:[port]/[pathname] -> hostname, pathname, port
+	if(parse_uri(request_uri, hostname, pathname, &port) < 0) {
+		printf("process_request: cannot parse URI\n");
+		close(connfd);
+		free(request);
+		return NULL;
+	}
+
+	//forward request to the end server
+	if((serverfd = open_clientfd(hostname, port)) < 0) {
+		printf("process_request: Unable to connect to end server.\n");
+		//close(connfd); //?
+		free(request);
+		return NULL;
+	}
+	
+	//write the full request to the server.
+	Rio_writen_w(serverfd, "GET /", strlen("GET /"));
+	Rio_writen_w(serverfd, pathname, strlen(pathname));
+	Rio_writen_w(serverfd, " HTTP/1.0\r\n", strlen(" HTTP/1.0\r\n"));
+	Rio_writen_w(serverfd, rest_of_request, strlen(rest_of_request));
+	
+	//initialize reader to read from server
+	Rio_readinitb(&rio, serverfd);
+	response_len = 0;
+	//continually read the response, line by line
+	while((n = Rio_readn_w(serverfd, buf, MAXLINE)) > 0) {
+		response_len += n; //keep track of how long the response is
+		Rio_writen_w(connfd, buf, n); //write the line from the server to the client
+		bzero(buf, MAXLINE); //zero out the buffer
+	}
+
+	//log the request
+	format_log_entry(log_entry, &clientaddr, request_uri, response_len);
+	fprintf(log_file, "%s %d\n", log_entry, response_len); //put to file
+	fflush(log_file);
+	printf("%s %d\n", log_entry, response_len); //also print to console.
+
+	//do some cleanup
 	close(connfd);
+	close(serverfd);
+	free(request);
+	return NULL;
 }
 
 int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
