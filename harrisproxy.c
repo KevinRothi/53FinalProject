@@ -7,7 +7,6 @@ FILE * logfile;
 void process_request(int connfd, struct sockaddr_in* clientaddr);
 int parse_uri(char* uri, char* hostname, char* pathname, int* port);
 void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, int size);
-int open_clientfd(char *hostname, int port);
 ssize_t Rio_readn_w(int fd, void *ptr, size_t nbytes);
 ssize_t Rio_readlineb_w(rio_t *rp, void *usrbuf, size_t maxlen);
 void Rio_writen_w(int fd, void *usrbuf, size_t n);
@@ -243,37 +242,6 @@ void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, 
 	
 	//put fully formatted string into log entry
 	sprintf(log_entry, "%s: %d.%d.%d.%d %s %d", time_str, a, b, c, d, uri, response_len);
-}
-
-int open_clientfd(char *hostname, int port) {
-	int clientfd;
-	struct hostent hostent, *hp = &hostent;
-	struct hostent *temp_hp;
-	struct sockaddr_in serveraddr;
-
-	if((clientfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		return -1; //make the socket connection
-	}
-	//get host
-	temp_hp = gethostbyname(hostname);
-	if(temp_hp != NULL) {
-		hostent = *temp_hp; // copy so we don't lose!
-	}
-	//make sure we actually got a host
-	if(temp_hp == NULL) {
-		return -2;
-	}
-	//fill in server IP and port
-	bzero((char*)&serveraddr, sizeof(serveraddr));
-	serveraddr.sin_family = AF_INET;
-	bcopy((char*)hp->h_addr,(char*)&serveraddr.sin_addr.s_addr,hp->h_length);
-	serveraddr.sin_port = htons(port);
-
-	//connect to server
-	if(connect(clientfd, (SA*) &serveraddr, sizeof(serveraddr)) < 0) {
-		return -1;
-	}
-	return clientfd;
 }
 
 //these rio functions are simply wrappers to help identify when read/writes fail
