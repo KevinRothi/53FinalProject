@@ -7,6 +7,10 @@ FILE * logfile;
 void process_request(int connfd, struct sockaddr_in* clientaddr);
 int parse_uri(char* uri, char* hostname, char* pathname, int* port);
 void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, int size);
+int open_clientfd(char *hostname, int port);
+ssize_t Rio_readn_w(int fd, void *ptr, size_t nbytes);
+ssize_t Rio_readlineb_w(rio_t *rp, void *usrbuf, size_t maxlen);
+void Rio_writen_w(int fd, void *usrbuf, size_t n);
 
 int main(int argc, char ** argv) {
 	int listenfd;
@@ -79,7 +83,7 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 			printf("process_request: client issued a bad request (1).\n");
 			close(connfd);
 			free(request);
-			return NULL;
+			return;
 		}
 		//make sure request buffer is large enough;
 		if(request_len + n + 1 > MAXLINE) {
@@ -100,7 +104,7 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 		printf("process_request: Received non-GET request\n");
 		close(connfd);
 		free(request);
-		return NULL;
+		return;
 	}
 	request_uri = request + 4; //the URI occurs right after the GET
 
@@ -120,7 +124,7 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 		printf("process_request: Couldn't find end of URI\n");
 		close(connfd);
 		free(request);
-		return NULL;
+		return;
 	}
 
 	//make sure HTTP version follows URI
@@ -129,7 +133,7 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 		printf("process_request: client issued a bad request (4).\n");
 		close(connfd);
 		free(request);
-		return NULL;
+		return;
 	}
 
 	//The rest of the request follow the HTTP directive
@@ -140,7 +144,7 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 		printf("process_request: cannot parse URI\n");
 		close(connfd);
 		free(request);
-		return NULL;
+		return;
 	}
 
 	//forward request to the end server
@@ -148,7 +152,7 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 		printf("process_request: Unable to connect to end server.\n");
 		//close(connfd); //?
 		free(request);
-		return NULL;
+		return;
 	}
 	
 	//write the full request to the server.
@@ -168,16 +172,15 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 	}
 
 	//log the request
-	format_log_entry(log_entry, &clientaddr, request_uri, response_len);
-	fprintf(log_file, "%s\n", log_entry); //put to file
-	fflush(log_file);
+	format_log_entry(log_entry, clientaddr, request_uri, response_len);
+	fprintf(logfile, "%s\n", log_entry); //put to file
+	fflush(logfile);
 	printf("%s\n", log_entry); //also print to console.
 
 	//do some cleanup
 	close(connfd);
 	close(serverfd);
 	free(request);
-	return NULL;
 }
 
 int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
@@ -218,7 +221,7 @@ int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
 	return 0;
 }
 
-void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, response_len) {
+void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, int response_len) {
 	//format = Date: browserIP URL size
 	time_t now;
 	char time_str[MAXLINE];
@@ -240,4 +243,63 @@ void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, 
 	
 	//put fully formatted string into log entry
 	sprintf(log_entry, "%s: %d.%d.%d.%d %s %d", time_str, a, b, c, d, uri, response_len);
+}
+
+int open_clientfd(char *hostname, int port) {
+	int clientfd;
+	struct hostent hostent, *hp = &hostent;
+	struct hostent *temp_hp;
+	struct sockaddr_in serveraddr;
+
+	if((clientfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		return -1; //make the socket connection
+	}
+	//get host
+	temp_hp = gethostbyname(hostname);
+	if(temp_hp != NULL) {
+		hostent = *temp_hp; // copy so we don't lose!
+	}
+	//make sure we actually got a host
+	if(temp_hp == NULL) {
+		return -2;
+	}
+	//fill in server IP and port
+	bzero((char*)&serveraddr, sizeof(serveraddr));
+	serveraddr.sin_family = AF_INET;
+	bcopy((char*)hp->h_addr,(char*)&serveraddr.sin_addr.s_addr,hp->h_length);
+	serveraddr.sin_port = htons(port);
+
+	//connect to server
+	if(connect(clientfd, (SA*) &serveraddr, sizeof(serveraddr)) < 0) {
+		return -1;
+	}
+	return clientfd;
+}
+
+//these rio functions are simply wrappers to help identify when read/writes fail
+//	which can happen alot because of server
+ssize_t Rio_readn_w(int fd, void *ptr, size_t nbytes) {
+	ssize_t n;
+	
+	if((n = rio_readn(fd, ptr, nbytes)) < 0) {
+		printf("Warning: rio_readn failed\n");
+		return 0;
+	}
+	return n;
+}
+
+ssize_t Rio_readlineb_w(rio_t *rp, void *usrbuf, size_t maxlen) {
+	ssize_t rc;
+
+	if((rc = rio_readlineb(rp, usrbuf, maxlen)) < 0) {
+		printf("Warning: rio_readlineb failed\n");
+		return 0;
+	}
+	return rc;
+}
+
+void Rio_writen_w(int fd, void *usrbuf, size_t n) {
+	if(rio_writen(fd, usrbuf, n) != n) {
+		printf("Warning: rio_writen failed.\n");
+	}
 }
