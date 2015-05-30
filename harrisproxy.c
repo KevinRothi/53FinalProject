@@ -169,9 +169,9 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 
 	//log the request
 	format_log_entry(log_entry, &clientaddr, request_uri, response_len);
-	fprintf(log_file, "%s %d\n", log_entry, response_len); //put to file
+	fprintf(log_file, "%s\n", log_entry); //put to file
 	fflush(log_file);
-	printf("%s %d\n", log_entry, response_len); //also print to console.
+	printf("%s\n", log_entry); //also print to console.
 
 	//do some cleanup
 	close(connfd);
@@ -218,7 +218,7 @@ int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
 	return 0;
 }
 
-void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, int size) {
+void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, response_len) {
 	//format = Date: browserIP URL size
 	time_t now;
 	char time_str[MAXLINE];
@@ -239,5 +239,5 @@ void format_log_entry(char* log_entry, struct sockaddr_in* sockaddr, char* uri, 
 	//hex address is a:b:c:d
 	
 	//put fully formatted string into log entry
-	sprintf(log_entry, "%s: %d.%d.%d.%d %s %d", time_str, a, b, c, d, uri, size);
+	sprintf(log_entry, "%s: %d.%d.%d.%d %s %d", time_str, a, b, c, d, uri, response_len);
 }
