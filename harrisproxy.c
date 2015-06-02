@@ -1,3 +1,8 @@
+/**
+ * Authors: Kevin Rothi, Pavana Somisetty, Yvonne Feng, Skylar Payne
+ * ICS 53 Lab 4 - Sequential Web Proxy
+**/
+
 #include "csapp.h"
 
 #define PROXY_LOG "proxy.log"
@@ -100,7 +105,6 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 		}
 	}
 
-	//TODO: does it only need to handle GET requests?
 	if(strncmp(request, "GET ", strlen("get "))) {
 		printf("process_request: Received non-GET request\n");
 		close(connfd);
@@ -161,7 +165,7 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 	Rio_writen_w(serverfd, pathname, strlen(pathname));
 	Rio_writen_w(serverfd, " HTTP/1.0\r\n", strlen(" HTTP/1.0\r\n"));
 	Rio_writen_w(serverfd, rest_of_request, strlen(rest_of_request));
-	
+
 	//initialize reader to read from server
 	Rio_readinitb(&rio, serverfd);
 	response_len = 0;
