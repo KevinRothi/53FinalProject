@@ -1,4 +1,3 @@
-/* Bitch I'm fabulous */
 #include "csapp.h"
 
 #define PROXY_LOG "proxy.log"
@@ -90,6 +89,7 @@ void process_request(int connfd, struct sockaddr_in* clientaddr) {
 		if(request_len + n + 1 > MAXLINE) {
 			Realloc(request, MAXLINE*realloc_factor++);
 		}
+		
 		//copy the newly read line into the request
 		strcat(request, buf);
 		request_len += n;
@@ -200,19 +200,21 @@ int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
 
 	//extract the host name out of the uri
 	hostbegin = uri + 7; //move past the protocol
-	hostend = strpbrk(hostbegin, " :/\r\n\0"); //Take the rest of the string until one of these chars
-	len = hostend - hostbegin;
-	strncpy(hostname, hostbegin, len); //copy the string into host name
-	hostname[len] = '\0'; //Make sure to null terminate
+	hostend = strpbrk(hostbegin, " :/\r\n"); //Take the rest of the string until one of these chars
+	
+	//this is necessary because if no port or path is supplied, strpbrk returns NULL.
+	len = (hostend == NULL ? strlen(hostbegin) : hostend - hostbegin);
 
+	strncpy(hostname, hostbegin, len); //copy the string into host name
+
+	hostname[len] = '\0'; //Make sure to null terminate
 	//get port
 	*port = 80; //set a default port in case user does not specify one.
-	if (*hostend == ':') {
+	if (hostend != NULL && *hostend == ':') {
 		*port = atoi(hostend + 1); //parse the port if there is one specified
 	}
 
 	//extract path
-	
 	pathbegin = strchr(hostbegin, '/'); //take location right after the '/' char (where path should be)
 	if(pathbegin == NULL) { //no path
 		pathname[0] = '\0';
