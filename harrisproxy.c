@@ -35,14 +35,16 @@ int main(int argc, char ** argv) {
 	logfile = Fopen(PROXY_LOG,"a");
 	
 	//print out a status so we know the proxy is running
-	printf("Accepting connections at port %d...\n", port);
+	printf("Accepting connections at port %d...\n\n", port);
 
 	while(1)
 	{
-		
+				
 		clientlen = sizeof(clientaddr);
 		//Accept a request from a client, then process it.
+		printf("Waiting for connection...\n");
 		connfd = Accept(listenfd, (SA *)&clientaddr, (socklen_t *)&clientlen);
+		printf("Received request. Processing...\n");
 		process_request(connfd, &clientaddr);
 	}
 
@@ -198,7 +200,7 @@ int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
 
 	//extract the host name out of the uri
 	hostbegin = uri + 7; //move past the protocol
-	hostend = strpbrk(hostbegin, " :/\r\r\0"); //Take the rest of the string until one of these chars
+	hostend = strpbrk(hostbegin, " :/\r\n\0"); //Take the rest of the string until one of these chars
 	len = hostend - hostbegin;
 	strncpy(hostname, hostbegin, len); //copy the string into host name
 	hostname[len] = '\0'; //Make sure to null terminate
@@ -210,6 +212,7 @@ int parse_uri(char* uri, char* hostname, char* pathname, int* port) {
 	}
 
 	//extract path
+	
 	pathbegin = strchr(hostbegin, '/'); //take location right after the '/' char (where path should be)
 	if(pathbegin == NULL) { //no path
 		pathname[0] = '\0';
